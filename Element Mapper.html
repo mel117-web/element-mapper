@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Element Mapper – Periodic Table Match</title>
+<style>
+  * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body {
+    margin: 0;
+    background: linear-gradient(135deg, #f59e0b, #10b981);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .screen {
+    width: 900px;
+    height: 560px;
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 20px;
+    display: none;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+  .active { display: block; }
+
+  h1, h2 { text-align: center; }
+
+  button {
+    padding: 12px 30px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    background: #ea580c;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover { background: #c2410c; }
+
+  .center { text-align: center; margin-top: 40px; }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .stars { color: gold; }
+
+  #gameArea {
+    display: flex;
+    justify-content: space-between;
+    height: 430px;
+  }
+
+  .formulas, .names {
+    width: 45%;
+    background: #e5e7eb;
+    border-radius: 12px;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .formulas h3, .names h3 {
+    text-align: center;
+    margin-top: 0;
+  }
+
+  .formula {
+    background: #fcd34d;
+    margin: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: grab;
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .name {
+    background: #6ee7b7;
+    margin: 10px;
+    padding: 15px;
+    border-radius: 8px;
+    min-height: 60px;
+    font-weight: bold;
+  }
+
+  .name.correct { background: #22c55e; color: white; }
+  .name.wrong { background: #ef4444; color: white; }
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="startScreen" class="screen active">
+  <h1>🧪 Element Mapper</h1>
+  <p style="text-align:center; font-size:18px;">
+    Drag each chemical formula to its correct element name!
+  </p>
+  <div class="center">
+    <button onclick="startGame()">Start Game</button>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="gameScreen" class="screen">
+  <div class="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Level: <span id="level">1</span></div>
+    <div>Time: <span id="time">60</span>s</div>
+    <div class="stars" id="stars">⭐</div>
+  </div>
+
+  <div id="gameArea">
+    <div class="formulas">
+      <h3>Formulas</h3>
+      <div id="formulaList"></div>
+    </div>
+
+    <div class="names">
+      <h3>Element Names</h3>
+      <div id="nameList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- END SCREEN (TIME UP) -->
+<div id="endScreen" class="screen">
+  <h1>⏱️ Time's Up!</h1>
+  <h2>Score: <span id="finalScore"></span></h2>
+  <h3>Stars: <span id="finalStars"></span></h3>
+  <div class="center">
+    <button onclick="restartGame()">Play Again</button>
+  </div>
+</div>
+
+<!-- FINISH SCREEN -->
+<div id="finishScreen" class="screen">
+  <h1>🏆 All Levels Completed!</h1>
+  <h2>Periodic Table Master 🌐</h2>
+  <h3>Final Score: <span id="finishScore"></span></h3>
+  <h3>Stars Earned: <span id="finishStars"></span></h3>
+  <div class="center">
+    <button onclick="restartGame()">Play Again</button>
+  </div>
+</div>
+
+<script>
+  const screens = {
+    start: document.getElementById('startScreen'),
+    game: document.getElementById('gameScreen'),
+    end: document.getElementById('endScreen'),
+    finish: document.getElementById('finishScreen')
+  };
+
+  const formulaList = document.getElementById('formulaList');
+  const nameList = document.getElementById('nameList');
+
+  const scoreEl = document.getElementById('score');
+  const levelEl = document.getElementById('level');
+  const timeEl = document.getElementById('time');
+  const starsEl = document.getElementById('stars');
+
+  let score = 0;
+  let level = 1;
+  let stars = 1;
+  let timeLeft = 60;
+  let timer;
+  let matchedCount = 0;
+
+  const levels = [
+    {
+      formulas: { 'H': 'Hydrogen', 'He': 'Helium', 'Li': 'Lithium' },
+    },
+    {
+      formulas: { 'C': 'Carbon', 'O': 'Oxygen', 'N': 'Nitrogen' },
+    },
+    {
+      formulas: { 'Na': 'Sodium', 'Cl': 'Chlorine', 'K': 'Potassium' },
+    }
+  ];
+
+  function startGame() {
+    switchScreen('game');
+    resetGame();
+    timer = setInterval(updateTimer, 1000);
+  }
+
+  function resetGame() {
+    score = 0;
+    level = 1;
+    stars = 1;
+    timeLeft = 60;
+    loadLevel();
+    updateHUD();
+  }
+
+  function updateHUD() {
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    timeEl.textContent = timeLeft;
+    starsEl.textContent = '⭐'.repeat(stars);
+  }
+
+  function loadLevel() {
+    formulaList.innerHTML = '';
+    nameList.innerHTML = '';
+    matchedCount = 0;
+
+    const data = levels[level - 1];
+
+    const formulas = Object.keys(data.formulas).sort(() => Math.random() - 0.5);
+    const names = Object.values(data.formulas).sort(() => Math.random() - 0.5);
+
+    formulas.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'formula';
+      div.textContent = f;
+      div.draggable = true;
+      div.dataset.name = data.formulas[f];
+      div.dataset.formula = f;
+
+      div.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text', div.dataset.name);
+        e.dataTransfer.setData('formula', div.dataset.formula);
+      });
+
+      formulaList.appendChild(div);
+    });
+
+    names.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'name';
+      div.textContent = n;
+
+      div.addEventListener('dragover', e => e.preventDefault());
+      div.addEventListener('drop', e => {
+        const correct = e.dataTransfer.getData('text');
+        const formula = e.dataTransfer.getData('formula');
+        if (n === correct) {
+          div.classList.add('correct');
+          score += 15;
+          matchedCount++;
+          // remove dragged formula
+          [...formulaList.children].forEach(fdiv => {
+            if (fdiv.dataset.formula === formula) fdiv.remove();
+          });
+          if (matchedCount === formulas.length) nextLevel();
+        } else {
+          div.classList.add('wrong');
+          score -= 5;
+          setTimeout(() => div.classList.remove('wrong'), 600);
+        }
+        updateHUD();
+      });
+
+      nameList.appendChild(div);
+    });
+  }
+
+  function nextLevel() {
+    stars = Math.min(3, stars + 1);
+    level++;
+    if (level > levels.length) finishGame();
+    else loadLevel();
+    updateHUD();
+  }
+
+  function updateTimer() {
+    timeLeft--;
+    updateHUD();
+    if (timeLeft <= 0) endGame();
+  }
+
+  function endGame() {
+    clearInterval(timer);
+    switchScreen('end');
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('finalStars').textContent = '⭐'.repeat(stars);
+  }
+
+  function finishGame() {
+    clearInterval(timer);
+    switchScreen('finish');
+    document.getElementById('finishScore').textContent = score;
+    document.getElementById('finishStars').textContent = '⭐'.repeat(stars);
+  }
+
+  function restartGame() {
+    switchScreen('start');
+  }
+
+  function switchScreen(name) {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  }
+</script>
+
+</body>
+</html>
